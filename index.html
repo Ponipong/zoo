@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>픽셀 동물원</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ══════════════ 캐릭터 선택 화면 ══════════════ -->
+  <div id="selectScreen" class="select-screen">
+    <div class="select-screen__inner">
+      <h1 class="select-screen__title">동물원을 함께 탐험할<br />캐릭터를 선택하세요</h1>
+      <div id="characterGrid" class="character-grid" role="listbox" aria-label="방문객 캐릭터 선택"></div>
+      <button id="enterBtn" class="enter-btn" disabled>입장하기</button>
+      <p class="select-screen__hint">지도에서 표지판을 클릭해 동물 방으로 이동 · 방 안에서는 방향키/WASD·가상 패드로 이동</p>
+    </div>
+  </div>
+
+  <div id="app" hidden>
+
+    <!-- ══════════════ 허브 화면 (동물원 지도) ══════════════ -->
+    <div id="hubScreen" class="hub-screen">
+      <div id="hubViewport" class="hub-viewport">
+        <div id="hubWorld" class="hub-world"></div>
+      </div>
+      <div class="hub-hud">
+        <span class="hub-hud__brand">🐾 픽셀 동물원 지도</span>
+        <span class="hub-hud__hint">드래그로 이동 · 휠/핀치로 확대·축소</span>
+      </div>
+    </div>
+
+    <!-- ══════════════ 개별 동물 방 ══════════════ -->
+    <div id="roomScreen" class="room-screen" hidden>
+      <div id="roomViewport" class="viewport">
+        <!-- 카메라 transform이 걸리는 컨테이너. roomVisitor는 방이 바뀌어도
+             유지되는 요소라 roomContent(구역별 내용물)와 분리해뒀다. -->
+        <div id="roomWorld" class="room-world">
+          <div id="roomContent" class="room-content"></div>
+          <div id="roomVisitor" class="visitor">
+            <div id="roomVisitorBody" class="visitor__body">
+              <img id="roomVisitorSprite" src="" alt="방문객 캐릭터" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="roomHud" class="room-hud">
+        <button id="backToMapBtn" type="button" class="room-hud__back">🗺️ 지도로 돌아가기</button>
+        <span id="roomTitle" class="room-hud__title"></span>
+        <button id="hudMute" type="button" class="room-hud__mute" aria-pressed="false" aria-label="효과음 끄기/켜기">🔊</button>
+      </div>
+
+      <!-- 모바일 전용 가상 D-pad -->
+      <div id="dpad" class="dpad" aria-hidden="true">
+        <button type="button" class="dpad__btn dpad__btn--up" data-dir="up">▲</button>
+        <button type="button" class="dpad__btn dpad__btn--left" data-dir="left">◀</button>
+        <button type="button" class="dpad__btn dpad__btn--right" data-dir="right">▶</button>
+        <button type="button" class="dpad__btn dpad__btn--down" data-dir="down">▼</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ 동물 정보 모달(대화창 스타일) ══════════════ -->
+  <div id="zoneModal" class="zone-modal" hidden>
+    <div class="zone-modal__backdrop" id="zoneModalBackdrop"></div>
+    <div class="zone-modal__panel" role="dialog" aria-modal="true" aria-labelledby="zoneModalTitle">
+      <button id="zoneModalClose" class="zone-modal__close" aria-label="닫기">×</button>
+      <img id="zoneModalImg" class="zone-modal__img" src="" alt="" />
+      <h3 id="zoneModalTitle" class="zone-modal__title"></h3>
+      <p id="zoneModalDesc" class="zone-modal__desc"></p>
+    </div>
+  </div>
+
+  <script src="zones.js"></script>
+  <script src="characters.js"></script>
+  <script src="vendor/gsap.min.js"></script>
+  <script src="sound.js"></script>
+  <script src="camera.js"></script>
+  <script src="render.js"></script>
+  <script src="hubMap.js"></script>
+  <script src="controls.js"></script>
+  <script src="animations.js"></script>
+</body>
+</html>
