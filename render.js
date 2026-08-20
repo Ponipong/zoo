@@ -7,6 +7,7 @@
 const ANIMALS_PATH = "assets/animals/";
 const CHARACTERS_PATH = "assets/characters/";
 const BACKGROUNDS_PATH = "assets/backgrounds/";
+const KEEPERS_PATH = "assets/keepers/";
 
 // 방 크기(roomSize)는 고정 픽셀이 아니라 "현재 화면 크기의 배율"로 계산한다.
 // small(1.0배)도 화면 크기 그대로라 배경이 항상 화면을 꽉 채우고, medium/large는
@@ -30,6 +31,9 @@ const ZooApp = (function () {
   }
   function backgroundAsset(filename) {
     return filename ? BACKGROUNDS_PATH + filename : "";
+  }
+  function keeperAsset(filename) {
+    return filename ? KEEPERS_PATH + filename : "";
   }
 
   function getZoneById(id) {
@@ -187,8 +191,8 @@ const ZooApp = (function () {
     if (zone.keeperSprite) {
       const keeper = document.createElement("img");
       keeper.className = "room__keeper";
-      keeper.src = animalAsset(zone.keeperSprite);
-      keeper.alt = zone.name + " 사육사";
+      keeper.src = keeperAsset(zone.keeperSprite);
+      keeper.alt = zone.name + " 담당 사육사";
       enclosure.appendChild(keeper);
     }
     if (zone.food && zone.food.sprite) {
