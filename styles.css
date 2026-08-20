@@ -1,0 +1,731 @@
+/* ============================================================
+   픽셀 동물원 — 허브 지도 + 개별 동물 방 구조
+   브레이크포인트: 데스크탑(1024px~) / 태블릿(481~1023px) / 모바일(~480px)
+   ============================================================ */
+
+:root {
+  --sprite-size: 108px;
+  font-size: 16px;
+  --sky-top: #8fd3f4;
+  --sky-bottom: #c9f2c7;
+  --ground: #6ec06a;
+  --ground-dark: #4f9c4d;
+  --ink: #1f2a24;
+  --panel: #fffdf5;
+  --accent: #ff6f61;
+  --accent-dark: #e2503f;
+  --pixel-border: 4px solid var(--ink);
+}
+
+@media (max-width: 1023px) {
+  :root {
+    --sprite-size: 88px;
+  }
+}
+@media (max-width: 480px) {
+  :root {
+    --sprite-size: 100px;
+  }
+}
+
+/* 서식지 테마 — habitatType 하나로 하늘+바닥 톤을 함께 묶어서 재사용한다
+   (방은 독립된 화면이라 옆방과 하늘을 이어줄 필요가 없어 단순화했다). */
+[data-habitat="forest"] {
+  --hab-sky: #bfe6c8;
+  --hab-floor: #3f7d3f;
+  --hab-floor-dark: #2c5c2c;
+}
+[data-habitat="lake"] {
+  --hab-sky: #8fd3f4;
+  --hab-floor: #3f8f8a;
+  --hab-floor-dark: #2b6a66;
+}
+[data-habitat="ice"] {
+  --hab-sky: #dbeeff;
+  --hab-floor: #cfe9f7;
+  --hab-floor-dark: #9fc9de;
+}
+[data-habitat="savanna"] {
+  --hab-sky: #ffe9b0;
+  --hab-floor: #d8b34d;
+  --hab-floor-dark: #b48d34;
+}
+[data-habitat="farm"] {
+  --hab-sky: #fff3d6;
+  --hab-floor: #b98b4e;
+  --hab-floor-dark: #8f6a3a;
+}
+
+.room__decor[data-shape="cluster"] {
+  background-image: radial-gradient(circle at 22% 34%, rgba(20, 60, 25, 0.35) 0 26px, transparent 27px),
+    radial-gradient(circle at 74% 22%, rgba(20, 60, 25, 0.3) 0 32px, transparent 33px),
+    radial-gradient(circle at 55% 46%, rgba(20, 60, 25, 0.22) 0 20px, transparent 21px);
+}
+.room__decor[data-shape="reeds"] {
+  background-image: repeating-linear-gradient(100deg, rgba(255, 255, 255, 0.35) 0 2px, transparent 2px 26px);
+  background-position: 0 56%;
+  background-size: 100% 22%;
+  background-repeat: repeat-x;
+}
+.room__decor[data-shape="rock"] {
+  background-image: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.55) 0 3px, transparent 4px),
+    radial-gradient(circle at 60% 20%, rgba(255, 255, 255, 0.4) 0 2px, transparent 3px);
+  background-size: 60px 50px, 80px 60px;
+  background-repeat: repeat;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: "Courier New", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color: var(--ink);
+  background: var(--sky-bottom);
+}
+
+img {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  user-select: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* ============================================================
+   캐릭터 선택 화면
+   ============================================================ */
+.select-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, var(--sky-top), var(--sky-bottom));
+  padding: 24px;
+  transition: opacity 0.2s ease;
+}
+.select-screen.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+.select-screen[hidden] {
+  display: none;
+}
+.select-screen__inner {
+  max-width: 900px;
+  width: 100%;
+  text-align: center;
+}
+.select-screen__title {
+  font-size: clamp(1.25rem, 3vw, 2rem);
+  line-height: 1.5;
+  margin: 0 0 28px;
+  text-shadow: 2px 2px 0 var(--panel);
+}
+.select-screen__hint {
+  margin-top: 18px;
+  font-size: 0.76rem;
+  opacity: 0.75;
+}
+.character-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.character-card {
+  background: var(--panel);
+  border: var(--pixel-border);
+  border-radius: 6px;
+  padding: 14px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.2);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.character-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.25);
+}
+.character-card.is-selected {
+  border-color: var(--accent-dark);
+  background: #fff2e8;
+  box-shadow: 4px 4px 0 var(--accent-dark);
+}
+.character-card__img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+}
+.character-card__name {
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+.enter-btn {
+  background: var(--accent);
+  color: #fff;
+  border: var(--pixel-border);
+  padding: 12px 32px;
+  font-size: 1rem;
+  font-weight: bold;
+  border-radius: 6px;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.25);
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.enter-btn:not(:disabled):hover {
+  transform: translateY(-2px);
+  background: var(--accent-dark);
+}
+.enter-btn:disabled {
+  background: #bbb;
+  border-color: #888;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ============================================================
+   허브 화면 (동물원 지도)
+   ============================================================ */
+#app {
+  position: fixed;
+  inset: 0;
+}
+
+.hub-screen {
+  position: fixed;
+  inset: 0;
+  transform-origin: 50% 50%;
+}
+
+.hub-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #202a1c;
+  touch-action: none;
+  cursor: grab;
+}
+
+.hub-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.hub-ground {
+  position: absolute;
+  inset: 0;
+  width: 1920px;
+  height: 952px;
+  object-fit: fill;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  pointer-events: none;
+  user-select: none;
+}
+
+.signpost {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: none;
+  border: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 84px;
+}
+
+.signpost__board {
+  width: 56px;
+  height: 56px;
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
+  transition: transform 0.12s ease;
+  position: relative;
+}
+
+.signpost__board img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+}
+
+.signpost:hover .signpost__board,
+.signpost:focus-visible .signpost__board {
+  transform: translateY(-4px) scale(1.05);
+}
+
+.signpost__post {
+  width: 8px;
+  height: 22px;
+  background: #6b4a2b;
+  border: 2px solid var(--ink);
+  border-top: none;
+  margin-top: -3px;
+}
+
+.signpost__label {
+  margin-top: 4px;
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 0.68rem;
+  font-weight: bold;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+}
+
+.signpost:hover .signpost__label,
+.signpost:focus-visible .signpost__label,
+.signpost.is-visited .signpost__label {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.signpost__badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #6fcf6f;
+  border: 2px solid var(--ink);
+  color: #fff;
+  font-size: 0.65rem;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.signpost.is-visited .signpost__badge {
+  display: flex;
+}
+
+.signpost.is-visited .signpost__board {
+  background: #fff8e6;
+  border-color: #d9a441;
+}
+
+.hub-hud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  padding: 8px 12px;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+.hub-hud__brand {
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.hub-hud__hint {
+  font-size: 0.68rem;
+  opacity: 0.75;
+}
+
+@media (max-width: 480px) {
+  .hub-hud__hint {
+    display: none;
+  }
+}
+
+/* ============================================================
+   개별 동물 방
+   ============================================================ */
+.room-screen {
+  position: fixed;
+  inset: 0;
+}
+.room-screen[hidden] {
+  display: none;
+}
+
+.viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--sky-bottom);
+  touch-action: none;
+}
+
+.room-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform;
+}
+
+.room-content {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    var(--hab-sky, var(--sky-top)) 0%,
+    var(--hab-sky, var(--sky-top)) 60%,
+    var(--hab-floor, var(--ground)) 60%,
+    var(--hab-floor-dark, var(--ground-dark)) 100%
+  );
+}
+
+.room__bg-layer {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+.room__decor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* 방 하나도 완전한 사각형으로 안 보이게, 바닥 앞쪽 경계를 살짝 지그재그로. */
+.room__path {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(90deg, #c9a36a 0 24px, #bb914f 24px 48px);
+  clip-path: polygon(
+    0% 8px,
+    10% 0%,
+    26% 10px,
+    42% 2px,
+    58% 12px,
+    74% 0%,
+    90% 8px,
+    100% 2px,
+    100% 100%,
+    0% 100%
+  );
+}
+
+.room__fence {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: repeating-linear-gradient(90deg, #6b4a2b 0 4px, transparent 4px 22px);
+  opacity: 0.85;
+}
+
+.room__enclosure {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+}
+
+.room__hit {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  display: block;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.room__hit::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  transform: translateX(-50%);
+  width: calc(var(--sprite-size) * var(--animal-scale, 1) * 0.9);
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.18);
+  filter: blur(1px);
+  pointer-events: none;
+}
+.room__hit--floats::after {
+  display: none;
+}
+.room__hit--floats {
+  margin-bottom: calc(var(--sprite-size) * var(--animal-scale, 1) * 0.6);
+}
+
+.room__hit.is-near::before {
+  content: "❗";
+  position: absolute;
+  left: 50%;
+  top: calc(var(--sprite-size) * var(--animal-scale, 1) * -0.35);
+  transform: translateX(-50%);
+  font-size: 1.1rem;
+  animation: zoo-bounce 0.6s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes zoo-bounce {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-6px);
+  }
+}
+
+.room__animal {
+  width: calc(var(--sprite-size) * var(--animal-scale, 1));
+  height: calc(var(--sprite-size) * var(--animal-scale, 1));
+  object-fit: contain;
+  filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0));
+  transition: filter 0.2s ease, transform 0.2s ease;
+}
+.room__hit:hover .room__animal {
+  transform: scale(1.06);
+}
+
+.room__keeper,
+.room__food {
+  position: absolute;
+  bottom: 12%;
+  width: calc(var(--sprite-size) * 0.6);
+  height: calc(var(--sprite-size) * 0.6);
+  object-fit: contain;
+  pointer-events: none;
+}
+.room__keeper {
+  right: 6%;
+}
+.room__food {
+  left: 6%;
+}
+
+/* ============================================================
+   방문객 캐릭터
+   ============================================================ */
+.visitor {
+  position: absolute;
+  width: var(--sprite-size);
+  pointer-events: none;
+  transform: translate(-50%, -78%);
+}
+.visitor__body.is-flipped {
+  transform: scaleX(-1);
+}
+.visitor__body img {
+  width: 100%;
+  height: auto;
+  display: block;
+  filter: drop-shadow(2px 3px 0 rgba(0, 0, 0, 0.25));
+}
+
+/* ============================================================
+   방 HUD — "지도로 돌아가기" + 동물 이름 + 음소거
+   ============================================================ */
+.room-hud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.room-hud__back {
+  pointer-events: auto;
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-weight: bold;
+  font-size: 0.85rem;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
+  transition: transform 0.12s ease;
+}
+.room-hud__back:hover {
+  transform: translateY(-2px);
+}
+
+.room-hud__title {
+  pointer-events: auto;
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-weight: bold;
+  font-size: 0.85rem;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
+}
+
+.room-hud__mute {
+  pointer-events: auto;
+  margin-left: auto;
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 1.05rem;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* ============================================================
+   가상 D-pad (모바일 전용)
+   ============================================================ */
+.dpad {
+  display: none;
+}
+@media (max-width: 767px) {
+  .dpad {
+    display: block;
+    position: absolute;
+    bottom: 22px;
+    left: 22px;
+    width: 148px;
+    height: 148px;
+    z-index: 40;
+  }
+  .dpad__btn {
+    position: absolute;
+    width: 52px;
+    height: 52px;
+    background: var(--panel);
+    border: 3px solid var(--ink);
+    border-radius: 10px;
+    font-size: 1.1rem;
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
+    color: var(--ink);
+  }
+  .dpad__btn.is-pressed {
+    background: #ffe9b3;
+    transform: translateY(1px);
+  }
+  .dpad__btn--up {
+    top: 0;
+    left: 48px;
+  }
+  .dpad__btn--down {
+    bottom: 0;
+    left: 48px;
+  }
+  .dpad__btn--left {
+    left: 0;
+    top: 48px;
+  }
+  .dpad__btn--right {
+    right: 0;
+    top: 48px;
+  }
+}
+
+/* ============================================================
+   파티클 이펙트
+   ============================================================ */
+.particle {
+  position: absolute;
+  pointer-events: none;
+  font-size: 18px;
+  z-index: 90;
+}
+
+/* ============================================================
+   동물 정보 모달 (대화창 스타일)
+   ============================================================ */
+.zone-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.zone-modal.is-open {
+  opacity: 1;
+}
+.zone-modal[hidden] {
+  display: none;
+}
+.zone-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 24, 20, 0.55);
+}
+.zone-modal__panel {
+  position: relative;
+  background: var(--panel);
+  border: var(--pixel-border);
+  border-radius: 10px;
+  padding: 28px 24px 22px;
+  max-width: 340px;
+  width: calc(100% - 32px);
+  text-align: center;
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.3);
+  transform: scale(0.94);
+  transition: transform 0.15s ease;
+}
+.zone-modal.is-open .zone-modal__panel {
+  transform: scale(1);
+}
+.zone-modal__img {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  margin-bottom: 10px;
+}
+.zone-modal__title {
+  margin: 0 0 10px;
+}
+.zone-modal__desc {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.zone-modal__close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--ink);
+}
